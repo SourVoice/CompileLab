@@ -1,0 +1,8 @@
+int main(){
+    int a = 10;
+    float b = 20.9;
+    if(a <= b)
+        a=a+b;
+    else a = 0;
+    return a;
+}
