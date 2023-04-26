@@ -1,34 +1,59 @@
 /**
  * @file parserAST.cpp
  * @author 杨钧硕 (you@domain.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2023-04-21
- * 
+ *
  * @copyright Copyright (c) 2023
- * 
+ *
  */
+#include "../Node.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <vector>
 using namespace std;
-
-vector<string> Keyword = {"scanf", "printf", "for", "do", "main", "abs", "sqrt"};
-vector<string> Return = {"return"};
-vector<string> IF = {"if"};
-vector<string> ELSE = {"else"};
-vector<string> WHILE = {"while"};
-vector<string> STRUCT = {"struct"};
+enum tokentype {
+    INT,
+    FLOAT,
+    ID,
+    SEMI,
+    COMMA,
+    ASSIGNOP,
+    RELOP,
+    PLUS,
+    MINUS,
+    STAR,
+    DIV,
+    AND,
+    OR,
+    DOT,
+    NOT,
+    TYPE,
+    LP,
+    RP,
+    LB,
+    RB,
+    LC,
+    RC,
+    STRUCT,
+    RETURN,
+    IF,
+    ELSE,
+    WHILE,
+    LOWER_THAN_ELSE
+};
+vector<string> keywords = {"else", "for", "if", "return", "struct", "while", "return"};
 vector<string> Type = {"int", "void", "char", "double", "short", "float"};
 //*********************************************
-int number[200];  // 记录所在行数
-char def[200];    // 记录词法类型
-int sum = 0;      // 记录词法数量
-int error = 0;    // 报错标志
-int errornum = 0; // 错误词法
-int flag = 0;     // 从0走到sum 读完所有词法
+int line_num_record[200]; // 记录所在行数
+int tokens[200];          // 记录词法类型
+int sum = 0;              // 记录词法数量
+int error = 0;            // 报错标志
+int errornum = 0;         // 错误词法
+int index = 0;             // 从0走到sum 读完所有词法
 int a = 0;
 //********************************************
 void Program(); // 语法分析器的函数声明
@@ -46,13 +71,13 @@ void DecList();
 void Dec();
 void Exp();
 //************************************************
-struct Node {
+struct TokenInfo {
     int line = 0;
     string type;
     string word;
 };
 
-vector<Node> stack;
+vector<TokenInfo> tokenVec;
 int line = 1;
 char text[1000] = "";
 char ch = ' ';
@@ -61,13 +86,13 @@ int i = 0;
 int example = 1;
 int eline = 0;
 string word;
-Node temp;
+TokenInfo temp;
 
 void push(string s) {
     temp.line = line;
     temp.type = s;
     temp.word = word;
-    stack.push_back(temp);
+    tokenVec.push_back(temp);
     word.clear();
 }
 
@@ -96,7 +121,7 @@ void jump() // 判断换行
     }
 }
 
-void push1() // 十进制
+void pushDecmial() // 十进制
 {
     while (ch >= '0' && ch <= '9') {
         word += ch;
@@ -110,7 +135,7 @@ void push1() // 十进制
             word += ch;
             ch = text[++i];
         }
-        if (ch == 'e' || ch == 'E')
+        if (ch == 'e' || ch == ASSIGNOP)
             judgee();
         else
             push("FLOAT");
@@ -131,7 +156,7 @@ void push1() // 十进制
         }
     }
 }
-void push0() // 八进制 十六进制
+void pushOctHex() // 八进制 十六进制
 {
     while (ch >= '0' && ch <= '9') {
         word += ch;
@@ -159,7 +184,7 @@ void push0() // 八进制 十六进制
             push("INT");
         }
         if (ch == '.')
-            push1();
+            pushDecmial();
     }
 }
 
@@ -178,7 +203,7 @@ void fun() // 状态图
                 push("RELOP");
                 ch = text[++i];
             } else if ((ch >= '0' && ch <= '9') || ch == '.')
-                push1();
+                pushDecmial();
             else
                 push("MINUS");
         }
@@ -190,7 +215,7 @@ void fun() // 状态图
                 push("RELOP");
                 ch = text[++i];
             } else if ((ch >= '0' && ch <= '9') || ch == '.')
-                push1();
+                pushDecmial();
             else
                 push("PLUS");
         }
@@ -200,17 +225,17 @@ void fun() // 状态图
             if (ch < '0' || ch > '9') {
                 push("DOT");
             } else
-                push1();
+                pushDecmial();
         }
         if (ch >= '0' && ch <= '9') {
             if (ch >= '1' && ch <= '9') {
                 word += ch;
                 ch = text[++i];
-                push1();
+                pushDecmial();
             } else if (ch == '0') {
                 word += ch;
                 ch = text[++i];
-                push0();
+                pushOctHex();
             }
         }
         if (isalnum(ch) || ch == '_') {
@@ -218,20 +243,19 @@ void fun() // 状态图
                 word += ch;
                 ch = text[++i];
             }
-            if (find(Keyword.begin(), Keyword.end(), word) != Keyword.end()) {
-                push("ID");
+            if (find(keywords.begin(), keywords.end(), word) != keywords.end()) {
+                if (word == "return")
+                    push("RETURN");
+                else if (word == "if")
+                    push("IF");
+                else if (word == "else")
+                    push("ELSE");
+                else if (word == "while")
+                    push("WHILE");
+                else if (word == "struct")
+                    push("STRUCT");
 
-            } else if (find(Return.begin(), Return.end(), word) != Return.end())
-                push("RETURN");
-            else if (find(IF.begin(), IF.end(), word) != IF.end())
-                push("IF");
-            else if (find(ELSE.begin(), ELSE.end(), word) != ELSE.end())
-                push("ELSE");
-            else if (find(WHILE.begin(), WHILE.end(), word) != WHILE.end())
-                push("WHILE");
-            else if (find(STRUCT.begin(), STRUCT.end(), word) != STRUCT.end())
-                push("STRUCT");
-            else if (find(Type.begin(), Type.end(), word) != Type.end())
+            } else if (find(Type.begin(), Type.end(), word) != Type.end())
                 push("TYPE");
             else {
                 push("ID");
@@ -411,17 +435,17 @@ void t(int ceng) {
 void Program(int ceng) { // Program->ExtDeflist;
     if (a == 1) {
         t(ceng);
-        cout << "Program (" << number[flag] << ")" << endl;
+        cout << "Program (" << line_num_record[index] << ")" << endl;
     }
     ExtDeflist(ceng);
 }
 void ExtDeflist(int ceng) { // ExtDeflist-> ExtDef ExtDeflist|e  注意走e的问题
-    if (def[flag] == 'a') {
+    if (tokens[index] == TYPE) {
 
         if (a == 1) {
             ceng++;
             t(ceng);
-            cout << "ExtDefList (" << number[flag] << ")" << endl;
+            cout << "ExtDefList (" << line_num_record[index] << ")" << endl;
         }
         ExtDef(ceng);
         ExtDeflist(ceng);
@@ -431,7 +455,7 @@ void ExtDef(int ceng) { // ExtDef->  Specifier FunDec Compst
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "ExtDef (" << number[flag] << ")" << endl;
+        cout << "ExtDef (" << line_num_record[index] << ")" << endl;
     }
     Specifier(ceng);
     FunDec(ceng);
@@ -441,121 +465,121 @@ void Specifier(int ceng) { // Specifier->a
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Specifier (" << number[flag] << ")" << endl;
+        cout << "Specifier (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'a') {
+    if (tokens[index] == TYPE) {
         if (a == 1) {
             t(ceng + 1);
             cout << "TYPE: ";
             int k = 0;
-            vector<Node>::iterator iter;
-            for (iter = stack.begin(); k < flag; iter++, k++)
+            vector<TokenInfo>::iterator iter;
+            for (iter = tokenVec.begin(); k < index; iter++, k++)
                 ;
             cout << (*iter).word << endl;
         }
-        flag++; // 匹配成功
+        index++; // 匹配成功
     } else {    // 语法错误 匹配失败
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 void VarDec(int ceng) { // VarDec->C
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "VarDec (" << number[flag] << ")" << endl;
+        cout << "VarDec (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'C') {
+    if (tokens[index] == ID) {
         if (a == 1) {
             t(ceng + 1);
             cout << "ID: ";
             int k = 0;
-            vector<Node>::iterator iter;
-            for (iter = stack.begin(); k < flag; iter++, k++)
+            vector<TokenInfo>::iterator iter;
+            for (iter = tokenVec.begin(); k < index; iter++, k++)
                 ;
             cout << (*iter).word << endl;
         }
-        flag++; // 匹配成功
+        index++; // 匹配成功
     } else {    // 语法错误 匹配失败
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 void FunDec(int ceng) { // FunDec->C O Q|C
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "FunDec (" << number[flag] << ")" << endl;
+        cout << "FunDec (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'C') {
+    if (tokens[index] == ID) {
         if (a == 1) {
             t(ceng + 1);
             cout << "ID: ";
             int k = 0;
-            vector<Node>::iterator iter;
-            for (iter = stack.begin(); k < flag; iter++, k++)
+            vector<TokenInfo>::iterator iter;
+            for (iter = tokenVec.begin(); k < index; iter++, k++)
                 ;
             cout << (*iter).word << endl;
         }
-        flag++; // 匹配成功
-        if (def[flag] == 'O') {
+        index++; // 匹配成功
+        if (tokens[index] == LP) {
             if (a == 1) {
                 t(ceng + 1);
                 cout << "LP" << endl;
             }
-            flag++;
-            if (def[flag] == 'Q') {
+            index++;
+            if (tokens[index] == RP) {
                 if (a == 1) {
                     t(ceng + 1);
                     cout << "RP" << endl;
                 }
-                flag++;
+                index++;
             } else { // 语法错误 匹配失败
                 error = 1;
-                errornum = flag;
+                errornum = index;
             }
         }
-        
+
     } else { // 语法错误 匹配失败
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 void Compst(int ceng) { // Compst-> T DefList StmtList U
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Compst (" << number[flag] << ")" << endl;
+        cout << "Compst (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'T') {
+    if (tokens[index] == LC) {
         if (a == 1) {
             t(ceng + 1);
             cout << "LC" << endl;
         }
-        flag++;
+        index++;
         DefList(ceng);
         StmtList(ceng);
-        if (def[flag] == 'U') {
+        if (tokens[index] == RC) {
             if (a == 1) {
                 t(ceng + 1);
                 cout << "RC" << endl;
             }
-            flag++;
+            index++;
         } else { // 语法错误 匹配失败
             error = 1;
-            errornum = flag;
+            errornum = index;
         }
     } else { // 语法错误 匹配失败
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 void StmtList(int ceng) { // StmtList->Stmt StmtList|e    注意e
-    if (def[flag] == 'W' || def[flag] == 'O' || def[flag] == 'N' || def[flag] == 'A' || def[flag] == 'C') {
+    if (tokens[index] == RETURN || tokens[index] == LP || tokens[index] == NOT || tokens[index] == INT || tokens[index] == ID) {
         if (a == 1) {
             ceng++;
             t(ceng);
-            cout << "StmtList (" << number[flag] << ")" << endl;
+            cout << "StmtList (" << line_num_record[index] << ")" << endl;
         }
         Stmt(ceng);
         StmtList(ceng);
@@ -565,45 +589,45 @@ void Stmt(int ceng) { // Stmt->Exp D| W Exp D
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Stmt (" << number[flag] << ")" << endl;
+        cout << "Stmt (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'W') {
+    if (tokens[index] == RETURN) {
         if (a == 1) {
             t(ceng + 1);
             cout << "RETURN" << endl;
         }
-        flag++;
+        index++;
         Exp(ceng);
-        if (def[flag] == 'D') {
+        if (tokens[index] == SEMI) {
             if (a == 1) {
                 t(ceng + 1);
                 cout << "SEMI" << endl;
             }
-            flag++;
+            index++;
         } else { // 语法错误 匹配失败
             error = 1;
-            errornum = flag;
+            errornum = index;
         }
     } else {
         Exp(ceng);
-        if (def[flag] == 'D') {
+        if (tokens[index] == SEMI) {
             if (a == 1) {
                 t(ceng + 1);
                 cout << "SEMI" << endl;
             }
-            flag++;
+            index++;
         } else { // 语法错误 匹配失败
             error = 1;
-            errornum = flag;
+            errornum = index;
         }
     }
 }
 void DefList(int ceng) { // DefList-> Def DefList |e 注意e
-    if (def[flag] == 'a') {
+    if (tokens[index] == TYPE) {
         if (a == 1) {
             ceng++;
             t(ceng);
-            cout << "DefList (" << number[flag] << ")" << endl;
+            cout << "DefList (" << line_num_record[index] << ")" << endl;
         }
         Def(ceng);
         DefList(ceng);
@@ -613,26 +637,26 @@ void Def(int ceng) { // Def-> Specifier DecList D
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Def (" << number[flag] << ")" << endl;
+        cout << "Def (" << line_num_record[index] << ")" << endl;
     }
     Specifier(ceng);
     DecList(ceng);
-    if (def[flag] == 'D') {
+    if (tokens[index] == SEMI) {
         if (a == 1) {
             t(ceng + 1);
             cout << "SEMI" << endl;
         }
-        flag++;
+        index++;
     } else { // 语法错误 匹配失败
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 void DecList(int ceng) { // DecList->Dec();
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "DecList (" << number[flag] << ")" << endl;
+        cout << "DecList (" << line_num_record[index] << ")" << endl;
     }
     Dec(ceng);
 }
@@ -640,74 +664,73 @@ void Dec(int ceng) { // Dec->VarDec E Exp |VaeDec
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Dec (" << number[flag] << ")" << endl;
+        cout << "Dec (" << line_num_record[index] << ")" << endl;
     }
     VarDec(ceng);
-    if (def[flag] == 'E') {
+    if (tokens[index] == ASSIGNOP) {
         if (a == 1) {
             t(ceng + 1);
             cout << "ASSIGNOP" << endl;
         }
-        flag++;
+        index++;
         Exp(ceng);
     }
-
 }
 void Exp(int ceng) { // Exp-> O Exp Q|N Exp | A | C
     if (a == 1) {
         ceng++;
         t(ceng);
-        cout << "Exp (" << number[flag] << ")" << endl;
+        cout << "Exp (" << line_num_record[index] << ")" << endl;
     }
-    if (def[flag] == 'O') {
+    if (tokens[index] == LP) {
         if (a == 1) {
             t(ceng + 1);
             cout << "LP" << endl;
         }
-        flag++;
+        index++;
         Exp(ceng);
-        if (def[flag] == 'Q') {
+        if (tokens[index] == RP) {
             if (a == 1) {
                 t(ceng + 1);
                 cout << "RP" << endl;
             }
-            flag++;
+            index++;
         } else {
             error = 1;
-            errornum = flag;
+            errornum = index;
         }
-    } else if (def[flag] == 'N') {
+    } else if (tokens[index] == NOT) {
         if (a == 1) {
             t(ceng + 1);
             cout << "NOT" << endl;
         }
-        flag++;
+        index++;
         Exp(ceng);
-    } else if (def[flag] == 'A') {
+    } else if (tokens[index] == INT) {
         if (a == 1) {
             t(ceng + 1);
             cout << "INT: ";
             int k = 0;
-            vector<Node>::iterator iter;
-            for (iter = stack.begin(); k < flag; iter++, k++)
+            vector<TokenInfo>::iterator iter;
+            for (iter = tokenVec.begin(); k < index; iter++, k++)
                 ;
             cout << (*iter).word << endl;
         }
-        flag++;
-    } else if (def[flag] == 'C') {
+        index++;
+    } else if (tokens[index] == ID) {
         if (a == 1) {
             t(ceng + 1);
             cout << "ID: ";
             int k = 0;
-            vector<Node>::iterator iter;
-            for (iter = stack.begin(); k < flag; iter++, k++)
+            vector<TokenInfo>::iterator iter;
+            for (iter = tokenVec.begin(); k < index; iter++, k++)
                 ;
             cout << (*iter).word << endl;
         }
-        flag++;
+        index++;
     } else {
         error = 1;
-        errornum = flag;
+        errornum = index;
     }
 }
 
@@ -719,83 +742,56 @@ int main() {
     }
     fun();
     if (example) {
-        for (vector<Node>::iterator iter = stack.begin(); iter != stack.end(); iter++) {
-            number[sum] = (*iter).line;
-            if ((*iter).type == "INT") { // 注意八进制和16进制向十进制的转换
-                int ab = 0, flag1 = 0, length = 0;
-                length = (*iter).word.length();
-
-                if (((*iter).word[0] == '0' && (*iter).word[1] == 'x') || ((*iter).word[0] == '0' && (*iter).word[1] == 'X')) // 该数为16进制
-                {
-                    flag1 = 16;
-                    ab = 2;
-                } else if ((*iter).word[0] == '0') // 该数为八进制
-                {
-                    flag1 = 8;
-                    ab = 0;
-                } else {
-                    flag1 = 10;
-                }
-
-                int ans = 0;
-                for (int j = ab; j < length; j++) {
-                    char t = (*iter).word[j];
-                    if (t >= '0' && t <= '9')
-                        ans = ans * flag1 + (t - '0');
-                    else if (t >= 'A' && t <= 'F')
-                        ans = ans * flag1 + (t - 'A' + 10);
-                    else
-                        ans = ans * flag1 + (t - 'a' + 10);
-                }
-
-                (*iter).word = to_string(ans);
-                def[sum] = 'A';
+        for (vector<TokenInfo>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
+            line_num_record[sum] = (*iter).line;
+            if ((*iter).type == "INT") {
+                auto content = (*iter).word;
+                (*iter).word = to_string(stoi(content)); // 注意八进制和16进制向十进制的转换
+                tokens[sum] = INT;
             }
-            if ((*iter).type == "FLOAT") def[sum] = 'B';
-            if ((*iter).type == "ID") def[sum] = 'C';
-            if ((*iter).type == "SEMI") def[sum] = 'D';
-            if ((*iter).type == "ASSIGNOP") def[sum] = 'E';
-            if ((*iter).type == "RELOP") def[sum] = 'F';
-            if ((*iter).type == "PLUS") def[sum] = 'G';
-            if ((*iter).type == "MINUS") def[sum] = 'H';
-            if ((*iter).type == "STAR") def[sum] = 'I';
-            if ((*iter).type == "DIV") def[sum] = 'J';
-            if ((*iter).type == "AND") def[sum] = 'K';
-            if ((*iter).type == "OR") def[sum] = 'L';
-            if ((*iter).type == "DOT") def[sum] = 'M';
-            if ((*iter).type == "NOT") def[sum] = 'N';
-            if ((*iter).type == "LP") def[sum] = 'O';
-            if ((*iter).type == "RP") def[sum] = 'Q';
-            if ((*iter).type == "LB") def[sum] = 'R';
-            if ((*iter).type == "RB") def[sum] = 'S';
-            if ((*iter).type == "LC") def[sum] = 'T';
-            if ((*iter).type == "RC") def[sum] = 'U';
-            if ((*iter).type == "STRUCT") def[sum] = 'V';
-            if ((*iter).type == "RETURN") def[sum] = 'W';
-            if ((*iter).type == "IF") def[sum] = 'X';
-            if ((*iter).type == "ELSE") def[sum] = 'Y';
-            if ((*iter).type == "WHILE") def[sum] = 'Z';
-            if ((*iter).type == "TYPE") def[sum] = 'a';
-            if ((*iter).type == "COMMA") def[sum] = 'b';
+            if ((*iter).type == "FLOAT") tokens[sum] = FLOAT;
+            if ((*iter).type == "ID") tokens[sum] = ID;
+            if ((*iter).type == "SEMI") tokens[sum] = SEMI;
+            if ((*iter).type == "ASSIGNOP") tokens[sum] = ASSIGNOP;
+            if ((*iter).type == "RELOP") tokens[sum] = RELOP;
+            if ((*iter).type == "PLUS") tokens[sum] = PLUS;
+            if ((*iter).type == "MINUS") tokens[sum] = MINUS;
+            if ((*iter).type == "STAR") tokens[sum] = STAR;
+            if ((*iter).type == "DIV") tokens[sum] = DIV;
+            if ((*iter).type == "AND") tokens[sum] = AND;
+            if ((*iter).type == "OR") tokens[sum] = OR;
+            if ((*iter).type == "DOT") tokens[sum] = DOT;
+            if ((*iter).type == "NOT") tokens[sum] = NOT;
+            if ((*iter).type == "LP") tokens[sum] = LP;
+            if ((*iter).type == "RP") tokens[sum] = RP;
+            if ((*iter).type == "LB") tokens[sum] = LB;
+            if ((*iter).type == "RB") tokens[sum] = RB;
+            if ((*iter).type == "LC") tokens[sum] = LC;
+            if ((*iter).type == "RC") tokens[sum] = RC;
+            if ((*iter).type == "STRUCT") tokens[sum] = tokentype::STRUCT;
+            if ((*iter).type == "RETURN") tokens[sum] = RETURN;
+            if ((*iter).type == "IF") tokens[sum] = tokentype::IF;
+            if ((*iter).type == "ELSE") tokens[sum] = tokentype::ELSE;
+            if ((*iter).type == "WHILE") tokens[sum] = tokentype::WHILE;
+            if ((*iter).type == "TYPE") tokens[sum] = TYPE;
+            if ((*iter).type == "COMMA") tokens[sum] = COMMA;
             sum++;
         }
-
     }
     Program(0);
     if (errornum == 2) {
         a = 1;
-        flag = 0;
+        index = 0;
         Program(0);
     } else {
-
-        if (error == 1 || flag != sum) { // 存在语法错误或者未处理到句子末尾
-            if (errornum == 1 || number[errornum] == number[errornum - 1])
-                cout << "Error type (Syntactical) at line " << number[errornum] << "." << endl;
+        if (error == 1 || index != sum) { // 存在语法错误或者未处理到句子末尾
+            if (errornum == 1 || line_num_record[errornum] == line_num_record[errornum - 1])
+                cout << "Error type (Syntactical) at line " << line_num_record[errornum] << "." << endl;
             else
-                cout << "Error type (Syntactical) at line " << number[errornum - 1] << "." << endl;
+                cout << "Error type (Syntactical) at line " << line_num_record[errornum - 1] << "." << endl;
         } else {
             a = 1;
-            flag = 0;
+            index = 0;
             Program(0);
         }
     }

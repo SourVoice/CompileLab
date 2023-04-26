@@ -1,13 +1,14 @@
 /**
  * @file parserAST.cpp
- * @author 杨钧硕 (you@domain.com)
- * @brief
+ * @author 高本涵 (you@domain.com)
+  
  * @version 0.1
  * @date 2023-04-21
  *
  * @copyright Copyright (c) 2023
  *
  */
+#include "Node.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -15,33 +16,10 @@
 #include <vector>
 using namespace std;
 enum tokentype {
-    INT,
-    FLOAT,
-    ID,
-    SEMI,
-    COMMA,
-    ASSIGNOP,
-    RELOP,
-    PLUS,
-    MINUS,
-    STAR,
-    DIV,
-    AND,
-    OR,
-    DOT,
-    NOT,
-    TYPE,
-    LP,
-    RP,
-    LB,
-    RB,
-    LC,
-    RC,
-    STRUCT,
-    RETURN,
-    IF,
-    ELSE,
-    WHILE,
+    INT, FLOAT, ID, SEMI, COMMA, ASSIGNOP, RELOP, PLUS,
+    MINUS, STAR, DIV, AND, OR, DOT, NOT, TYPE,
+    LP, RP, LB, RB, LC, RC,
+    STRUCT, RETURN, IF, ELSE, WHILE,
     LOWER_THAN_ELSE
 };
 vector<string> keywords = {"else", "for", "if", "return", "struct", "while", "return"};
@@ -50,32 +28,18 @@ vector<string> Type = {"int", "void", "char", "double", "short", "float"};
 int line_num_record[200]; // 记录所在行数
 int tokens[200];          // 记录词法类型
 int sum = 0;              // 记录词法数量
-int error = 0;            // 报错标志
+int synError = 0;         // 报错标志
 int errornum = 0;         // 错误词法
-int index = 0;             // 从0走到sum 读完所有词法
+int index = 0;            // 从0走到sum 读完所有词法
 //********************************************
-void Program(); // 语法分析器的函数声明
-void ExtDeflist();
-void ExtDef();
-void Specifier();
-void VarDec();
-void FunDec();
-void Compst();
-void StmtList();
-void Stmt();
-void DefList();
-void Def();
-void DecList();
-void Dec();
-void Exp();
-//************************************************
-struct Node {
+
+struct TokenInfo {
     int line = 0;
     string type;
     string word;
 };
 
-vector<Node> tokenVec;
+vector<TokenInfo> tokenVec;
 int line = 1;
 char text[1000] = "";
 char ch = ' ';
@@ -84,7 +48,7 @@ int i = 0;
 int example = 1;
 int eline = 0;
 string word;
-Node temp;
+TokenInfo temp;
 
 void push(string s) {
     temp.line = line;
@@ -185,8 +149,8 @@ void pushOctHex() // 八进制 十六进制
             pushDecmial();
     }
 }
-
-void fun() // 状态图
+// lexical part
+void fun() 
 {
     ch = text[i];
     jump();
@@ -409,154 +373,274 @@ void fun() // 状态图
     }
 }
 //****************************************************************
-void Program();
-void ExtDeflist();
-void ExtDef();
-void Specifier();
-void VarDec();
-void FunDec();
-void Compst();
-void StmtList();
-void Stmt();
-void DefList();
-void Def();
-void DecList();
-void Dec();
-void Exp();
-void Program() { // Program->ExtDeflist;
-    ExtDeflist();
+// parser part
+pNode Program();
+pNode ExtDeflist();
+pNode ExtDef();
+pNode Specifier();
+pNode VarDec();
+pNode FunDec();
+pNode Compst();
+pNode StmtList();
+pNode Stmt();
+pNode DefList();
+pNode Def();
+pNode DecList();
+pNode Dec();
+pNode Exp();
+// TODO: 重新声明
+/**
+ * @note
+ * Program => ExtDefList
+ * @return pNode 
+ */
+pNode Program() { 
+    return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Program", 1, ExtDeflist());
 }
-void ExtDeflist() { // ExtDeflist-> ExtDef ExtDeflist|e  注意走e的问题
+/**
+ * @note
+ * ExtDeflist => ExtDef ExtDeflist
+ *             | empty
+ * @return pNode 
+ */
+pNode ExtDeflist() {
     if (tokens[index] == TYPE) {
-        ExtDef();
-        ExtDeflist();
+        pNode node_ExtDef = ExtDef();
+        pNode node_ExtDefList = ExtDeflist();
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "ExtDeflist", 2, node_ExtDef, node_ExtDefList);
     }
+    return nullptr;
 }
-void ExtDef() { // ExtDef->  Specifier FunDec Compst
-    Specifier();
-    FunDec();
-    Compst();
-}
-void Specifier() { // Specifier->a
+/**
+ * @note
+ * ExtDef => Specifier FunDec Compst
+ * @return pNode 
+ */
+pNode ExtDef() { 
+    pNode node_Specifier = Specifier();
+    pNode node_FunDec = FunDec();
+    pNode node_Compst = Compst();
+    return newNode(line_num_record[index- 1], NOT_A_TOKEN, "ExtDef", 3, node_Specifier, node_FunDec, node_Compst);
+} 
+/**
+ * @note
+ * Specifier => TYPE
+ * @return pNode 
+ */
+pNode Specifier() { 
     if (tokens[index] == TYPE) {
-        index++; // 匹配成功
-    } else {    // 语法错误 匹配失败
-        error = 1;
+        index++;
+        pNode token_TYPE = newTokenNode(line_num_record[index- 1], TYPE_TOKEN, "TYPE", tokenVec[index - 1].word);
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Specifier", 1, token_TYPE);
+    } else { // 语法错误 匹配失败
+        synError = 1;
         errornum = index;
     }
 }
-void VarDec() { // VarDec->C
+/**
+ * @note
+ * VarDec => ID
+ * @return pNode 
+ */
+pNode VarDec() { 
     if (tokens[index] == ID) {
-        index++; // 匹配成功
-    } else {    // 语法错误 匹配失败
-        error = 1;
+        index++;
+        pNode token_ID = newTokenNode(line_num_record[index- 1], ID_TOKEN, "ID", tokenVec[index - 1].word);
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "VarDec", 1, token_ID);
+    } else { // 语法错误 匹配失败
+        synError = 1;
         errornum = index;
     }
 }
-void FunDec() { // FunDec->C O Q|C
+/**
+ * @note
+ * FunDec => ID LP RP 
+ *         | ID
+ * @return pNode 
+ */
+pNode FunDec() { 
     if (tokens[index] == ID) {
-        index++; // 匹配成功
+        index++; 
+        pNode token_ID = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "ID", tokenVec[index - 1].word);
         if (tokens[index] == LP) {
             index++;
+            pNode token_LP = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "LP", tokenVec[index - 1].word);
             if (tokens[index] == RP) {
                 index++;
+                pNode token_RP = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "RP", tokenVec[index - 1].word);
+                return newNode(line_num_record[index- 1], NOT_A_TOKEN, "FunDec", 3, token_ID, token_LP, token_RP);
             } else { // 语法错误 匹配失败
-                error = 1;
+                synError = 1;
                 errornum = index;
             }
         }
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "FunDec", 1, token_ID);
     } else { // 语法错误 匹配失败
-        error = 1;
+        synError = 1;
         errornum = index;
     }
 }
-void Compst() { // Compst-> T DefList StmtList U
+/**
+ * @note
+ * Compst => LC DefList StmtList RC
+ * @return pNode 
+ */
+pNode Compst() { 
     if (tokens[index] == LC) {
         index++;
-        DefList();
-        StmtList();
+        pNode token_LC = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "LC", tokenVec[index - 1].word);
+        pNode node_DefList = DefList();
+        pNode node_StmtList = StmtList();
         if (tokens[index] == RC) {
             index++;
+            pNode token_RC = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "RC", tokenVec[index - 1].word);
+            return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Compst", 4, token_LC, node_DefList, node_StmtList, token_RC);
         } else { // 语法错误 匹配失败
-            error = 1;
+            synError = 1;
             errornum = index;
         }
     } else { // 语法错误 匹配失败
-        error = 1;
+        synError = 1;
         errornum = index;
     }
 }
-void StmtList() { // StmtList->Stmt StmtList|e    注意e
-    if (tokens[index] == RETURN || tokens[index] == LP || tokens[index] == NOT || tokens[index] == 'A' || tokens[index] == ID) {
-        Stmt();
-        StmtList();
+/**
+ * @note
+ * StmtList => Stmt StmtList
+ *           | empty
+ * @return pNode 
+ */
+pNode StmtList() {
+    if (tokens[index] == RETURN || tokens[index] == LP || tokens[index] == NOT || tokens[index] == INT || tokens[index] == ID) {
+        pNode node_Stmt = Stmt();
+        pNode node_StmtList = StmtList();
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "StmtList", 2, node_Stmt, node_StmtList);
     }
+    return nullptr;
 }
-void Stmt() { // Stmt->Exp D| W Exp D
+/**
+ * @note
+ * Stmt => Exp SEMI 
+ *       | RETURN Exp Stmt
+ * @return pNode 
+ */
+pNode Stmt() { 
     if (tokens[index] == RETURN) {
         index++;
-        Exp();
+        pNode token_RETURN = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "RETURN", tokenVec[index - 1].word);
+        pNode node_Exp = Exp();
         if (tokens[index] == SEMI) {
             index++;
+            pNode token_SEMI = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "SEMI", tokenVec[index - 1].word);
+            return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Stmt", 3, token_RETURN, node_Exp, token_SEMI);
         } else { // 语法错误 匹配失败
-            error = 1;
+            synError = 1;
             errornum = index;
         }
     } else {
-        Exp();
+        pNode node_Exp = Exp();
         if (tokens[index] == SEMI) {
             index++;
+            pNode token_SEMI = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "SEMI", tokenVec[index - 1].word);
+            return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Stmt", 2, node_Exp, token_SEMI);
         } else { // 语法错误 匹配失败
-            error = 1;
+            synError = 1;
             errornum = index;
         }
     }
 }
-void DefList() { // DefList-> Def DefList |e 注意e
+/**
+ * @note
+ * DefList => Def DefList 
+ *          | empty
+ * @return pNode 
+ */
+pNode DefList() { 
     if (tokens[index] == TYPE) {
-        Def();
-        DefList();
+        pNode node_Def = Def();
+        pNode node_DefList = DefList();
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "DefList", 2, node_Def, node_DefList);
     }
+    return nullptr;
 }
-void Def() { // Def-> Specifier DecList D
-    Specifier();
-    DecList();
+/**
+ * @note
+ * Def => Specifier DecList SEMI
+ * @return pNode 
+ */
+pNode Def() { 
+    pNode node_Specifier = Specifier();
+    pNode node_DecList = DecList();
     if (tokens[index] == SEMI) {
         index++;
+        pNode token_SEMI = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "SEMI", tokenVec[index - 1].word);
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Def", 3, node_Specifier, node_DecList, token_SEMI);
     } else { // 语法错误 匹配失败
-        error = 1;
+        synError = 1;
         errornum = index;
     }
 }
-void DecList() { // DecList->Dec();
-    Dec();
+/**
+ * @note
+ * DecList => Dec;
+ * @return pNode 
+ */
+pNode DecList() { 
+    pNode node_Dec = Dec();
+    return newNode(line_num_record[index- 1], NOT_A_TOKEN, "DecList", 1, node_Dec);
 }
-void Dec() { // Dec->VarDec E Exp |VaeDec
-    VarDec();
+/**
+ * @note
+ * Dec => VarDec ASSIGNOP Exp
+ *      | VarDec
+ * @return pNode 
+ */
+pNode Dec() { 
+    pNode node_VarDec = VarDec();
     if (tokens[index] == ASSIGNOP) {
         index++;
-        Exp();
+        pNode token_ASSIGNOP = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "ASSIGNOP", tokenVec[index - 1].word);
+        pNode node_Exp = Exp();
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Dec", 3, node_VarDec, token_ASSIGNOP, node_Exp);
     }
+    return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Dec", 1, node_VarDec);
 }
-void Exp() { // Exp-> O Exp Q|N Exp | A | C
+/**
+ * @note
+ * Exp-> LP Exp RP
+ *     | NOP Exp 
+ *     | INT
+ *     | ID
+ * @return pNode 
+ */
+pNode Exp() { 
     if (tokens[index] == LP) {
         index++;
-        Exp();
+        pNode token_LP = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "LP", tokenVec[index - 1].word);
+        pNode node_Exp = Exp();
         if (tokens[index] == RP) {
             index++;
+            pNode token_RP = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "RP", tokenVec[index - 1].word);
+            return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Exp", 3, token_LP, node_Exp, token_RP);
         } else {
-            error = 1;
+            synError = 1;
             errornum = index;
         }
     } else if (tokens[index] == NOT) {
         index++;
-        Exp();
+        pNode token_NOT = newTokenNode(line_num_record[index- 1], OTHER_TOKEN, "NOT", tokenVec[index - 1].word);
+        pNode node_Exp = Exp();
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Exp", 2, token_NOT, node_Exp);
     } else if (tokens[index] == INT) {
         index++;
+        pNode token_INT = newTokenNode(line_num_record[index- 1], INT_TOKEN, "INT", tokenVec[index - 1].word);
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Exp", 1, token_INT);
     } else if (tokens[index] == ID) {
         index++;
+        pNode token_ID = newTokenNode(line_num_record[index- 1], ID_TOKEN, "ID", tokenVec[index - 1].word);
+        return newNode(line_num_record[index- 1], NOT_A_TOKEN, "Exp", 1, token_ID);
     } else {
-        error = 1;
+        synError = 1;
         errornum = index;
     }
 }
@@ -569,7 +653,7 @@ int main() {
     }
     fun();
     if (example) {
-        for (vector<Node>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
+        for (vector<TokenInfo>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
             line_num_record[sum] = (*iter).line;
             if ((*iter).type == "INT") tokens[sum] = INT;
             if ((*iter).type == "FLOAT") tokens[sum] = FLOAT;
@@ -601,17 +685,15 @@ int main() {
             sum++;
         }
     }
-    Program();
-    if (errornum == 2) {
-        cout << "Syntactical Correct." << endl;
+    pNode root;
+    root = Program();
+    if (synError == 1 || index != sum) { // 存在语法错误或者未处理到句子末尾
+        if (errornum == 1 || line_num_record[errornum] == line_num_record[errornum - 1])
+            cout << "Error type (Syntactical) at line " << line_num_record[errornum] << "." << endl;
+        else
+            cout << "Error type (Syntactical) at line " << line_num_record[errornum - 1] << "." << endl;
     } else {
-
-        if (error == 1 || index != sum) { // 存在语法错误或者未处理到句子末尾
-            if (errornum == 1 || line_num_record[errornum] == line_num_record[errornum - 1])
-                cout << "Error type (Syntactical) at line " << line_num_record[errornum] << "." << endl;
-            else
-                cout << "Error type (Syntactical) at line " << line_num_record[errornum - 1] << "." << endl;
-        } else
-            cout << "Syntactical Correct." << endl;
+        cout << "Syntactical Correct." << endl;
+        printAST(root, 0);
     }
 }
