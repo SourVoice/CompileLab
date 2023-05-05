@@ -32,7 +32,7 @@ typedef struct NODE {
 typedef Node *pNode;
 
 Node *newNode(int line, NodeType type, string typeName, int argc, ...) {
-    printf("line = %d, type = %s, ", line, typeName.c_str());
+    // printf("line = %d, type = %s, ", line, typeName.c_str());
     Node *curNode = new Node;
     curNode->next = nullptr;
     curNode->lineno = line;
@@ -111,7 +111,7 @@ void printAST(Node *root, int height) {
         cout << root->typeName << ": "
              << root->tokenContent;
     } else if (root->type == NOT_A_TOKEN) {
-        cout << root->typeName << " (" << root->lineno << ")"
+        cout << root->typeName << " (" << root->lineno + 1 << ")"
              << root->tokenContent;
     }
     printf("\n");

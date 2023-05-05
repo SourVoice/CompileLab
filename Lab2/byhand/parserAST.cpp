@@ -50,7 +50,7 @@ vector<string> Type = {"int", "void", "char", "double", "short", "float"};
 //*********************************************
 int line_num_record[200]; // 记录所在行数
 int tokens[200];          // 记录词法类型
-int sum = 0;              // 记录词法数量
+int tokenSum = 0;              // 记录词法数量
 int error = 0;            // 报错标志
 int errornum = 0;         // 错误词法
 int index = 0;             // 从0走到sum 读完所有词法
@@ -743,39 +743,39 @@ int main() {
     fun();
     if (example) {
         for (vector<TokenInfo>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
-            line_num_record[sum] = (*iter).line;
+            line_num_record[tokenSum] = (*iter).line;
             if ((*iter).type == "INT") {
                 auto content = (*iter).word;
                 (*iter).word = to_string(stoi(content)); // 注意八进制和16进制向十进制的转换
-                tokens[sum] = INT;
+                tokens[tokenSum] = INT;
             }
-            if ((*iter).type == "FLOAT") tokens[sum] = FLOAT;
-            if ((*iter).type == "ID") tokens[sum] = ID;
-            if ((*iter).type == "SEMI") tokens[sum] = SEMI;
-            if ((*iter).type == "ASSIGNOP") tokens[sum] = ASSIGNOP;
-            if ((*iter).type == "RELOP") tokens[sum] = RELOP;
-            if ((*iter).type == "PLUS") tokens[sum] = PLUS;
-            if ((*iter).type == "MINUS") tokens[sum] = MINUS;
-            if ((*iter).type == "STAR") tokens[sum] = STAR;
-            if ((*iter).type == "DIV") tokens[sum] = DIV;
-            if ((*iter).type == "AND") tokens[sum] = AND;
-            if ((*iter).type == "OR") tokens[sum] = OR;
-            if ((*iter).type == "DOT") tokens[sum] = DOT;
-            if ((*iter).type == "NOT") tokens[sum] = NOT;
-            if ((*iter).type == "LP") tokens[sum] = LP;
-            if ((*iter).type == "RP") tokens[sum] = RP;
-            if ((*iter).type == "LB") tokens[sum] = LB;
-            if ((*iter).type == "RB") tokens[sum] = RB;
-            if ((*iter).type == "LC") tokens[sum] = LC;
-            if ((*iter).type == "RC") tokens[sum] = RC;
-            if ((*iter).type == "STRUCT") tokens[sum] = tokentype::STRUCT;
-            if ((*iter).type == "RETURN") tokens[sum] = RETURN;
-            if ((*iter).type == "IF") tokens[sum] = tokentype::IF;
-            if ((*iter).type == "ELSE") tokens[sum] = tokentype::ELSE;
-            if ((*iter).type == "WHILE") tokens[sum] = tokentype::WHILE;
-            if ((*iter).type == "TYPE") tokens[sum] = TYPE;
-            if ((*iter).type == "COMMA") tokens[sum] = COMMA;
-            sum++;
+            if ((*iter).type == "FLOAT") tokens[tokenSum] = FLOAT;
+            if ((*iter).type == "ID") tokens[tokenSum] = ID;
+            if ((*iter).type == "SEMI") tokens[tokenSum] = SEMI;
+            if ((*iter).type == "ASSIGNOP") tokens[tokenSum] = ASSIGNOP;
+            if ((*iter).type == "RELOP") tokens[tokenSum] = RELOP;
+            if ((*iter).type == "PLUS") tokens[tokenSum] = PLUS;
+            if ((*iter).type == "MINUS") tokens[tokenSum] = MINUS;
+            if ((*iter).type == "STAR") tokens[tokenSum] = STAR;
+            if ((*iter).type == "DIV") tokens[tokenSum] = DIV;
+            if ((*iter).type == "AND") tokens[tokenSum] = AND;
+            if ((*iter).type == "OR") tokens[tokenSum] = OR;
+            if ((*iter).type == "DOT") tokens[tokenSum] = DOT;
+            if ((*iter).type == "NOT") tokens[tokenSum] = NOT;
+            if ((*iter).type == "LP") tokens[tokenSum] = LP;
+            if ((*iter).type == "RP") tokens[tokenSum] = RP;
+            if ((*iter).type == "LB") tokens[tokenSum] = LB;
+            if ((*iter).type == "RB") tokens[tokenSum] = RB;
+            if ((*iter).type == "LC") tokens[tokenSum] = LC;
+            if ((*iter).type == "RC") tokens[tokenSum] = RC;
+            if ((*iter).type == "STRUCT") tokens[tokenSum] = tokentype::STRUCT;
+            if ((*iter).type == "RETURN") tokens[tokenSum] = RETURN;
+            if ((*iter).type == "IF") tokens[tokenSum] = tokentype::IF;
+            if ((*iter).type == "ELSE") tokens[tokenSum] = tokentype::ELSE;
+            if ((*iter).type == "WHILE") tokens[tokenSum] = tokentype::WHILE;
+            if ((*iter).type == "TYPE") tokens[tokenSum] = TYPE;
+            if ((*iter).type == "COMMA") tokens[tokenSum] = COMMA;
+            tokenSum++;
         }
     }
     Program(0);
@@ -784,7 +784,7 @@ int main() {
         index = 0;
         Program(0);
     } else {
-        if (error == 1 || index != sum) { // 存在语法错误或者未处理到句子末尾
+        if (error == 1 || index != tokenSum) { // 存在语法错误或者未处理到句子末尾
             if (errornum == 1 || line_num_record[errornum] == line_num_record[errornum - 1])
                 cout << "Error type (Syntactical) at line " << line_num_record[errornum] << "." << endl;
             else

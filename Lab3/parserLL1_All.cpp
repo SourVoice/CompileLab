@@ -1,81 +1,87 @@
 /**
- * @file parserAST.cpp
- * @author 杨钧硕 (you@domain.com)
- * @brief
+ * @file parserLL1_All.cpp
+ * @author Gaobenhan (you@domain.com)
+ * @brief 使用LL1文法解析表分析下面的文法
+ *      ALL：
+ *      Exp →LP Exp RP | MINUS Exp | NOT Exp  | ID E | INT | FLOAT
+ *      E → LP Args RP | 空
+ *      Args → Exp A
+ *      A → COMMA  Args | 空
  * @version 0.1
- * @date 2023-04-21
- *
+ * @date 2023-05-05
+ * 
  * @copyright Copyright (c) 2023
- *
+ * 
  */
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <map>
+#include <stack>
+#include <unordered_map>
 #include <vector>
 using namespace std;
 enum tokentype {
-    INT,
-    FLOAT,
-    ID,
-    SEMI,
-    COMMA,
-    ASSIGNOP,
-    RELOP,
-    PLUS,
-    MINUS,
-    STAR,
-    DIV,
-    AND,
-    OR,
-    DOT,
-    NOT,
-    TYPE,
-    LP,
-    RP,
-    LB,
-    RB,
-    LC,
-    RC,
-    STRUCT,
-    RETURN,
-    IF,
-    ELSE,
-    WHILE,
-    LOWER_THAN_ELSE
+    // 终结符
+    INT = 0, FLOAT, ID, SEMI, COMMA, ASSIGNOP, RELOP, PLUS, MINUS, STAR, DIV, AND, OR, DOT, NOT, TYPE,
+    LP, RP, LB, RB, LC, RC,
+    STRUCT, RETURN, IF, ELSE, WHILE,
+    LOWER_THAN_ELSE,
+    END
 };
+enum nonterminal {
+    // 非终结符
+    Program = 100,
+    Exp,
+    E,
+    Args,
+    A,
+};
+typedef pair<int, int> pii;
 vector<string> keywords = {"else", "for", "if", "return", "struct", "while", "return"};
 vector<string> Type = {"int", "void", "char", "double", "short", "float"};
+map<pii, vector<int>> predict_table{
+    {{Exp, LP},         {LP, Exp, RP}},
+    {{Exp, MINUS},      {MINUS, Exp}},
+    {{Exp, ID},         {ID, E}},
+    {{Exp, INT},        {INT}},
+    {{Exp, FLOAT},      {FLOAT}},
+    {{Exp, NOT},        {NOT, Exp}},
+
+    {{E, LP},           {LP, Args, RP}},
+    {{E, RP},           {}},
+    {{E, COMMA},        {}},
+    {{E, END},          {}},
+
+    {{Args, LP},        {Exp, A}},
+    {{Args, MINUS},     {Exp, A}},
+    {{Args, ID},        {Exp, A}},
+    {{Args, INT},       {Exp, A}},
+    {{Args, FLOAT},     {Exp, A}},
+    {{Args, NOT},       {Exp, A}},
+
+    {{A, RP},           {}},
+    {{A, COMMA},        {COMMA, Args}},
+};
 //*********************************************
 int line_num_record[200]; // 记录所在行数
 int tokens[200];          // 记录词法类型
-int tokenSum = 0;              // 记录词法数量
-int error = 0;            // 报错标志
+int tokenSum = 0;         // 记录词法数量
+int synError = 0;         // 报错标志
 int errornum = 0;         // 错误词法
-int index = 0;             // 从0走到sum 读完所有词法
+int tokenindex = 0;       // 从0走到sum 读完所有词法
+stack<int> symbolStack;   // 符号栈
 //********************************************
-void Program(); // 语法分析器的函数声明
-void ExtDeflist();
-void ExtDef();
-void Specifier();
-void VarDec();
-void FunDec();
-void Compst();
-void StmtList();
-void Stmt();
-void DefList();
-void Def();
-void DecList();
-void Dec();
-void Exp();
-//************************************************
-struct Node {
+
+struct TokenInfo {
     int line = 0;
     string type;
     string word;
 };
 
-vector<Node> tokenVec;
+vector<TokenInfo> tokenVec;
 int line = 1;
 char text[1000] = "";
 char ch = ' ';
@@ -84,7 +90,7 @@ int i = 0;
 int example = 1;
 int eline = 0;
 string word;
-Node temp;
+TokenInfo temp;
 
 void push(string s) {
     temp.line = line;
@@ -185,9 +191,8 @@ void pushOctHex() // 八进制 十六进制
             pushDecmial();
     }
 }
-
-void fun() // 状态图
-{
+// lexical part
+void fun() {
     ch = text[i];
     jump();
     while (ch != '\0' && ch != EOF) {
@@ -408,210 +413,80 @@ void fun() // 状态图
         }
     }
 }
-//****************************************************************
-void Program();
-void ExtDeflist();
-void ExtDef();
-void Specifier();
-void VarDec();
-void FunDec();
-void Compst();
-void StmtList();
-void Stmt();
-void DefList();
-void Def();
-void DecList();
-void Dec();
-void Exp();
-void Program() { // Program->ExtDeflist;
-    ExtDeflist();
-}
-void ExtDeflist() { // ExtDeflist-> ExtDef ExtDeflist|e  注意走e的问题
-    if (tokens[index] == TYPE) {
-        ExtDef();
-        ExtDeflist();
-    }
-}
-void ExtDef() { // ExtDef->  Specifier FunDec Compst
-    Specifier();
-    FunDec();
-    Compst();
-}
-void Specifier() { // Specifier->a
-    if (tokens[index] == TYPE) {
-        index++; // 匹配成功
-    } else {    // 语法错误 匹配失败
-        error = 1;
-        errornum = index;
-    }
-}
-void VarDec() { // VarDec->C
-    if (tokens[index] == ID) {
-        index++; // 匹配成功
-    } else {    // 语法错误 匹配失败
-        error = 1;
-        errornum = index;
-    }
-}
-void FunDec() { // FunDec->C O Q|C
-    if (tokens[index] == ID) {
-        index++; // 匹配成功
-        if (tokens[index] == LP) {
-            index++;
-            if (tokens[index] == RP) {
-                index++;
-            } else { // 语法错误 匹配失败
-                error = 1;
-                errornum = index;
+
+void LL1() {
+    symbolStack.push(END);
+    symbolStack.push(Exp);
+    while (1) {
+        auto token = tokens[tokenindex];
+        auto top_elem = symbolStack.top();
+        if (top_elem == END && token == END) break;
+        if (top_elem >= 0 && top_elem < 100) { // 终结符
+            if (top_elem == token) {
+                symbolStack.pop();
+                tokenindex++;
+            }
+            else {
+                synError = 1;
+                break;
+            }
+        } else {
+            pii input = {top_elem, token};
+            if (!predict_table.count(input)) {
+                synError = true;
+                break;
+            }
+            symbolStack.pop();
+            auto rules = predict_table[{top_elem, token}];
+            if(rules.empty()) continue;
+            auto it = rules.crbegin();
+            while (it != rules.crend()) {
+                symbolStack.push(*it++);
             }
         }
-    } else { // 语法错误 匹配失败
-        error = 1;
-        errornum = index;
-    }
-}
-void Compst() { // Compst-> T DefList StmtList U
-    if (tokens[index] == LC) {
-        index++;
-        DefList();
-        StmtList();
-        if (tokens[index] == RC) {
-            index++;
-        } else { // 语法错误 匹配失败
-            error = 1;
-            errornum = index;
-        }
-    } else { // 语法错误 匹配失败
-        error = 1;
-        errornum = index;
-    }
-}
-void StmtList() { // StmtList->Stmt StmtList|e    注意e
-    if (tokens[index] == RETURN || tokens[index] == LP || tokens[index] == NOT || tokens[index] == 'A' || tokens[index] == ID) {
-        Stmt();
-        StmtList();
-    }
-}
-void Stmt() { // Stmt->Exp D| W Exp D
-    if (tokens[index] == RETURN) {
-        index++;
-        Exp();
-        if (tokens[index] == SEMI) {
-            index++;
-        } else { // 语法错误 匹配失败
-            error = 1;
-            errornum = index;
-        }
-    } else {
-        Exp();
-        if (tokens[index] == SEMI) {
-            index++;
-        } else { // 语法错误 匹配失败
-            error = 1;
-            errornum = index;
-        }
-    }
-}
-void DefList() { // DefList-> Def DefList |e 注意e
-    if (tokens[index] == TYPE) {
-        Def();
-        DefList();
-    }
-}
-void Def() { // Def-> Specifier DecList D
-    Specifier();
-    DecList();
-    if (tokens[index] == SEMI) {
-        index++;
-    } else { // 语法错误 匹配失败
-        error = 1;
-        errornum = index;
-    }
-}
-void DecList() { // DecList->Dec();
-    Dec();
-}
-void Dec() { // Dec->VarDec E Exp |VaeDec
-    VarDec();
-    if (tokens[index] == ASSIGNOP) {
-        index++;
-        Exp();
-    }
-}
-void Exp() { // Exp-> O Exp Q|N Exp | A | C
-    if (tokens[index] == LP) {
-        index++;
-        Exp();
-        if (tokens[index] == RP) {
-            index++;
-        } else {
-            error = 1;
-            errornum = index;
-        }
-    } else if (tokens[index] == NOT) {
-        index++;
-        Exp();
-    } else if (tokens[index] == INT) {
-        index++;
-    } else if (tokens[index] == ID) {
-        index++;
-    } else {
-        error = 1;
-        errornum = index;
     }
 }
 
 //****************************************************************
-int main() {
-    text[0] = getchar();
-    while (text[len] != EOF) {
-        text[++len] = getchar();
+int main(int argc, char *argv[]) {
+    if (argc == 1) {
+        text[0] = getchar();
+        while (text[len] != EOF) { text[++len] = getchar(); }
+    } else {
+        ifstream infile;
+        infile.open(argv[1]);
+        if (!infile) { cerr << "error open"; exit(1); }
+        else { cout << "open file " << argv[1] << endl; }
+        string filecontent;
+        infile.unsetf(ios::skipws);
+        filecontent.assign(std::istreambuf_iterator<char>(infile),
+                           std::istreambuf_iterator<char>());
+        strcpy(text, filecontent.c_str());
     }
     fun();
     if (example) {
-        for (vector<Node>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
+        for (vector<TokenInfo>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
             line_num_record[tokenSum] = (*iter).line;
-            if ((*iter).type == "INT") tokens[tokenSum] = INT;
-            if ((*iter).type == "FLOAT") tokens[tokenSum] = FLOAT;
-            if ((*iter).type == "ID") tokens[tokenSum] = ID;
-            if ((*iter).type == "SEMI") tokens[tokenSum] = SEMI;
-            if ((*iter).type == "ASSIGNOP") tokens[tokenSum] = ASSIGNOP;
-            if ((*iter).type == "RELOP") tokens[tokenSum] = RELOP;
-            if ((*iter).type == "PLUS") tokens[tokenSum] = PLUS;
-            if ((*iter).type == "MINUS") tokens[tokenSum] = MINUS;
-            if ((*iter).type == "STAR") tokens[tokenSum] = STAR;
-            if ((*iter).type == "DIV") tokens[tokenSum] = DIV;
-            if ((*iter).type == "AND") tokens[tokenSum] = AND;
-            if ((*iter).type == "OR") tokens[tokenSum] = OR;
-            if ((*iter).type == "DOT") tokens[tokenSum] = DOT;
-            if ((*iter).type == "NOT") tokens[tokenSum] = NOT;
-            if ((*iter).type == "LP") tokens[tokenSum] = LP;
-            if ((*iter).type == "RP") tokens[tokenSum] = RP;
-            if ((*iter).type == "LB") tokens[tokenSum] = LB;
-            if ((*iter).type == "RB") tokens[tokenSum] = RB;
-            if ((*iter).type == "LC") tokens[tokenSum] = LC;
-            if ((*iter).type == "RC") tokens[tokenSum] = RC;
-            if ((*iter).type == "STRUCT") tokens[tokenSum] = STRUCT;
-            if ((*iter).type == "RETURN") tokens[tokenSum] = RETURN;
-            if ((*iter).type == "IF") tokens[tokenSum] = IF;
-            if ((*iter).type == "ELSE") tokens[tokenSum] = ELSE;
-            if ((*iter).type == "WHILE") tokens[tokenSum] = WHILE;
-            if ((*iter).type == "TYPE") tokens[tokenSum] = TYPE;
-            if ((*iter).type == "COMMA") tokens[tokenSum] = COMMA;
+            if ((*iter).type == "INT")      tokens[tokenSum] = INT;
+            if ((*iter).type == "FLOAT")    tokens[tokenSum] = FLOAT;
+            if ((*iter).type == "ID")       tokens[tokenSum] = ID;
+            if ((*iter).type == "MINUS")    tokens[tokenSum] = MINUS;
+            if ((*iter).type == "LP")       tokens[tokenSum] = LP;
+            if ((*iter).type == "RP")       tokens[tokenSum] = RP;
+            if ((*iter).type == "NOT")      tokens[tokenSum] = NOT;
+            if ((*iter).type == "COMMA")    tokens[tokenSum] = COMMA;
             tokenSum++;
         }
+        tokens[tokenSum++] = END; 
     }
-    Program();
-    if (errornum == 2) {
-        cout << "Syntactical Correct." << endl;
+    LL1();
+    // TODO: 退出条件判断
+    if (synError == 1 && tokenindex != tokenSum) { // 存在语法错误或者未处理到句子末尾
+        if (tokenindex == 0 || line_num_record[tokenindex] == line_num_record[tokenindex - 1])
+            cout << "Error type (Syntactical) at line " << line_num_record[tokenindex] << "." << endl;
+        else
+            cout << "Error type (Syntactical) at line " << line_num_record[tokenindex - 1] << "." << endl;
     } else {
-
-        if (error == 1 || index != tokenSum) { // 存在语法错误或者未处理到句子末尾
-            if (errornum == 1 || line_num_record[errornum] == line_num_record[errornum - 1])
-                cout << "Error type (Syntactical) at line " << line_num_record[errornum] << "." << endl;
-            else
-                cout << "Error type (Syntactical) at line " << line_num_record[errornum - 1] << "." << endl;
-        } else
-            cout << "Syntactical Correct." << endl;
+        cout << "Syntactical Correct." << endl;
     }
 }
