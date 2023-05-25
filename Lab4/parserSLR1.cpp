@@ -1,17 +1,20 @@
 /**
- * @file parserLL1_All.cpp
- * @author Gaobenhan (you@domain.com)
- * @brief 使用LL1文法解析表分析下面的文法
- *      ALL：
- *      Exp →LP Exp RP | MINUS Exp | NOT Exp  | ID E | INT | FLOAT
- *      E → LP Args RP | 空
- *      Args → Exp A
- *      A → COMMA  Args | 空
+ * @file parserSLR.cpp
+ * @author gbh (you@domain.com)
+ * @brief
+ * (1) StmtList' => StmtList
+ * (2) StmtList => Stmt StmtList
+ * (3) StmtList => empty
+ * (4) Stmt => Exp SEMI
+ * (5) Stmt => IF LP Exp RP Stme
+ * (6) Exp => MINUS Exp
+ * (7) Exp => ID
+ * 
  * @version 0.1
- * @date 2023-05-05
- * 
+ * @date 2023-05-19
+ *
  * @copyright Copyright (c) 2023
- * 
+ *
  */
 #include <algorithm>
 #include <cstdio>
@@ -25,46 +28,125 @@
 using namespace std;
 enum tokentype {
     // 终结符
-    INT = 0, FLOAT, ID, SEMI, COMMA, ASSIGNOP, RELOP, PLUS, MINUS, STAR, DIV, AND, OR, DOT, NOT, TYPE,
+    INT = 0, FLOAT, ID, SEMI, COMMA, ASSIGNOP, RELOP, PLUS,
+    MINUS, STAR, DIV, AND, OR, DOT, NOT, TYPE,
     LP, RP, LB, RB, LC, RC,
-    STRUCT, RETURN, IF, ELSE, WHILE,
-    LOWER_THAN_ELSE,
-    END
+    STRUCT, RETURN, IF, ELSE, WHILE, LOWER_THAN_ELSE,
+    END /* 代表# */
 };
 enum nonterminal {
     // 非终结符
-    Program = 100,
+    StmtList = 100,
+    Stmt,
     Exp,
-    E,
-    Args,
-    A,
 };
 typedef pair<int, int> pii;
+typedef pair<int, vector<int>> piv;
 vector<string> keywords = {"else", "for", "if", "return", "struct", "while", "return"};
 vector<string> Type = {"int", "void", "char", "double", "short", "float"};
-map<pii, vector<int>> predict_table{
-    {{Exp, LP},         {LP, Exp, RP}},
-    {{Exp, MINUS},      {MINUS, Exp}},
-    {{Exp, ID},         {ID, E}},
-    {{Exp, INT},        {INT}},
-    {{Exp, FLOAT},      {FLOAT}},
-    {{Exp, NOT},        {NOT, Exp}},
 
-    {{E, LP},           {LP, Args, RP}},
-    {{E, RP},           {}},
-    {{E, COMMA},        {}},
-    {{E, END},          {}},
+enum action { s0 = 200, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, acc, };
 
-    {{Args, LP},        {Exp, A}},
-    {{Args, MINUS},     {Exp, A}},
-    {{Args, ID},        {Exp, A}},
-    {{Args, INT},       {Exp, A}},
-    {{Args, FLOAT},     {Exp, A}},
-    {{Args, NOT},       {Exp, A}},
+enum reduction_ { r0 = 300, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, };
 
-    {{A, RP},           {}},
-    {{A, COMMA},        {COMMA, Args}},
+map<pii, vector<int>> action_table = {
+    {{s0, IF}, {s4}},
+    {{s0, MINUS}, {s5}},
+    {{s0, ID}, {s6}},
+    {{s0, END}, {r3}},
+
+    {{s1, END}, {acc}},
+
+    {{s2, IF}, {s4}},
+    {{s2, MINUS}, {s5}},
+    {{s2, ID}, {s6}},
+    {{s2, END}, {r3}},
+
+    {{s3, SEMI}, {s8}},
+
+    {{s4, LP}, {s9}},
+
+    {{s5, MINUS}, {s5}},
+    {{s5, ID}, {s6}},
+
+    {{s6, SEMI}, {r7}},
+    {{s6, IF}, {r7}},
+    {{s6, LP}, {r7}},
+    {{s6, RP}, {r7}},
+    {{s6, MINUS}, {r7}},
+    {{s6, ID}, {r7}},
+    {{s6, END}, {r7}},
+
+    {{s7, SEMI}, {r2}},
+    {{s7, IF}, {r2}},
+    {{s7, LP}, {r2}},
+    {{s7, RP}, {r2}},
+    {{s7, MINUS}, {r2}},
+    {{s7, ID}, {r2}},
+    {{s7, END}, {r2}},
+
+    {{s8, SEMI}, {r4}},
+    {{s8, IF}, {r4}},
+    {{s8, LP}, {r4}},
+    {{s8, RP}, {r4}},
+    {{s8, MINUS}, {r4}},
+    {{s8, ID}, {r4}},
+    {{s8, END}, {r4}},
+
+    {{s9, MINUS}, {s5}},
+    {{s9, ID}, {s6}},
+
+    {{s10, SEMI}, {r6}},
+    {{s10, IF}, {r6}},
+    {{s10, LP}, {r6}},
+    {{s10, RP}, {r6}},
+    {{s10, MINUS}, {r6}},
+    {{s10, ID}, {r6}},
+    {{s10, END}, {r6}},
+
+    {{s11, RP}, {s12}},
+
+    {{s12, IF}, {s4}},
+    {{s12, MINUS}, {s5}},
+    {{s12, ID}, {s6}},
+
+    {{s13, SEMI}, {r5}},
+    {{s13, IF}, {r5}},
+    {{s13, LP}, {r5}},
+    {{s13, RP}, {r5}},
+    {{s13, MINUS}, {r5}},
+    {{s13, ID}, {r5}},
+    {{s13, END}, {r5}},
 };
+
+map<pii, vector<int>> goto_table = {
+    {{s0, StmtList}, {s1}},
+    {{s0, Stmt}, {s2}},
+    {{s0, Exp}, {s3}},
+
+    {{s2, StmtList}, {s7}},
+    {{s2, Stmt}, {s2}},
+    {{s2, Exp}, {s3}},
+
+    {{s5, Exp}, {s10}},
+
+    {{s9, Exp}, {s11}},
+
+    {{s12, Stmt}, {s13}},
+    {{s12, Exp}, {s3}},
+};
+
+map<int, piv> reduction = {
+    {{r2}, {{StmtList}, {Stmt, StmtList}}},
+    {{r3}, {{StmtList}, {}}},
+
+    {{r4}, {{Stmt}, {Exp, SEMI}}},
+    {{r5}, {{Stmt}, {IF, LP, Exp, RP, Stmt}}},
+
+    {{r6}, {{Exp}, {MINUS, Exp}}},
+    {{r7}, {{Exp}, {ID}}},
+};
+
 //*********************************************
 int line_num_record[200]; // 记录所在行数
 int tokens[200];          // 记录词法类型
@@ -73,6 +155,8 @@ int synError = 0;         // 报错标志
 int errornum = 0;         // 错误词法
 int tokenindex = 0;       // 从0走到sum 读完所有词法
 stack<int> symbolStack;   // 符号栈
+stack<int> stateStack;    // 状态栈
+
 //********************************************
 
 struct TokenInfo {
@@ -414,34 +498,60 @@ void fun() {
     }
 }
 
-void LL1() {
+void SLR1() {
+    stateStack.push(s0);
     symbolStack.push(END);
-    symbolStack.push(Exp);
+
     while (1) {
-        auto token = tokens[tokenindex];
-        auto top_elem = symbolStack.top();
-        if (top_elem == END && token == END) break;
-        if (top_elem >= 0 && top_elem < 100) { // 终结符
-            if (top_elem == token) {
+        auto state_top = stateStack.top();
+        int input_symbol = tokens[tokenindex];
+        if (input_symbol < 0 || input_symbol > 28) {
+            synError = 1;
+            break;
+        }
+
+        // 查表得到下一次的状态
+        auto iter = action_table.find(make_pair(state_top, input_symbol));
+        // 没有查找到, 走到空
+        if (iter == action_table.end()) {
+            synError = 1;
+            break;
+        }
+        int next_state = iter->second.front();
+        // 规约成功
+        if (next_state == acc) {
+            break;
+        }
+        // 入栈action
+        else if (next_state >= s0 && next_state <= s13) {
+            stateStack.push(next_state);
+            symbolStack.push(input_symbol);
+            tokenindex++;
+        }
+        // 规约
+        else if (next_state >= r0 && next_state <= r10) {
+            vector<int> pop_token; 
+            auto reduction_value = reduction[next_state];
+            for (size_t i = 0; i < reduction_value.second.size(); i++) {
+                auto symbol = symbolStack.top();
+                pop_token.push_back(symbol);
                 symbolStack.pop();
-                tokenindex++;
+                stateStack.pop();
             }
-            else {
+            // 判断弹出内容是否合法
+            reverse(begin(pop_token), end(pop_token)); // 弹出的与预测表相反, 需要反转
+            if (pop_token != reduction_value.second) {
                 synError = 1;
                 break;
             }
-        } else {
-            pii input = {top_elem, token};
-            if (!predict_table.count(input)) {
-                synError = true;
+            symbolStack.push(reduction_value.first);
+            auto s3 = stateStack.top();
+            auto it_ = goto_table.find({s3, reduction_value.first});
+            if (it_ == goto_table.end()) {
+                synError = 1;
                 break;
-            }
-            symbolStack.pop();
-            auto rules = predict_table[{top_elem, token}];
-            if(rules.empty()) continue;
-            auto it = rules.crbegin();
-            while (it != rules.crend()) {
-                symbolStack.push(*it++);
+            } else {
+                stateStack.push(it_->second.front());
             }
         }
     }
@@ -451,12 +561,18 @@ void LL1() {
 int main(int argc, char *argv[]) {
     if (argc == 1) {
         text[0] = getchar();
-        while (text[len] != EOF) { text[++len] = getchar(); }
+        while (text[len] != EOF) {
+            text[++len] = getchar();
+        }
     } else {
         ifstream infile;
         infile.open(argv[1]);
-        if (!infile) { cerr << "error open"; exit(1); }
-        else { cout << "open file " << argv[1] << endl; }
+        if (!infile) {
+            cerr << "error open";
+            exit(1);
+        } else {
+            cout << "open file " << argv[1] << endl;
+        }
         string filecontent;
         infile.unsetf(ios::skipws);
         filecontent.assign(std::istreambuf_iterator<char>(infile),
@@ -467,26 +583,22 @@ int main(int argc, char *argv[]) {
     if (example) {
         for (vector<TokenInfo>::iterator iter = tokenVec.begin(); iter != tokenVec.end(); iter++) {
             line_num_record[tokenSum] = (*iter).line;
-            if ((*iter).type == "INT")      tokens[tokenSum] = INT;
-            if ((*iter).type == "FLOAT")    tokens[tokenSum] = FLOAT;
-            if ((*iter).type == "ID")       tokens[tokenSum] = ID;
-            if ((*iter).type == "MINUS")    tokens[tokenSum] = MINUS;
-            if ((*iter).type == "LP")       tokens[tokenSum] = LP;
-            if ((*iter).type == "RP")       tokens[tokenSum] = RP;
-            if ((*iter).type == "NOT")      tokens[tokenSum] = NOT;
-            if ((*iter).type == "COMMA")    tokens[tokenSum] = COMMA;
+            if ((*iter).type == "ID") tokens[tokenSum] = ID;
+            if ((*iter).type == "SEMI") tokens[tokenSum] = SEMI;
+            if ((*iter).type == "MINUS") tokens[tokenSum] = MINUS;
+            if ((*iter).type == "LP") tokens[tokenSum] = LP;
+            if ((*iter).type == "RP") tokens[tokenSum] = RP;
+            if ((*iter).type == "IF") tokens[tokenSum] = IF;
             tokenSum++;
         }
-        tokens[tokenSum++] = END; 
+        tokens[tokenSum++] = END;
     }
-    LL1();
-    // TODO: 退出条件判断
-    if (synError == 1 && tokenindex != 8) { // 存在语法错误或者未处理到句子末尾
-        if (tokenindex == 0 || line_num_record[tokenindex] == line_num_record[tokenindex - 1])
-            cout << "Error type (Syntactical) at line " << line_num_record[tokenindex] << "." << endl;
-        else
-            cout << "Error type (Syntactical) at line " << line_num_record[tokenindex - 1] << "." << endl;
-    } else {
+    SLR1();
+    stateStack.pop();
+    if (synError != 1 && tokenindex == tokenSum - 1 && symbolStack.top() == StmtList && stateStack.top() == s0) {
         cout << "Syntactical Correct." << endl;
     }
+    // 特判
+    else
+        cout << "Error type (Syntactical) at line " << 1 << "." << endl;
 }
