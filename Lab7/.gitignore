@@ -1,10 +1,9 @@
+/.vscode
 *.zip
-*.output
-*.tab.*
-parser
-*.o
-*.exe
-*.tab.*
-*.yy.c
-parser 
 *.yy.h
+*.yy.c
+*.output
+*.tab.h
+*.tab.c
+
+parser
